@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CelebClub · Login</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        body { display: flex; align-items: center; justify-content: center; min-height: 100vh; overflow: auto; }
+
+        .login-wrap {
+            position: relative; z-index: 2;
+            width: 100%; max-width: 420px;
+            padding: 20px;
+        }
+
+        .login-logo {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .login-logo img {
+            height: 32px;
+            filter: drop-shadow(0 0 14px rgba(201,130,185,0.5));
+        }
+
+        .login-card {
+            background: rgba(14, 7, 24, 0.94);
+            border: 1px solid rgba(201,130,185,0.25);
+            border-radius: 20px;
+            padding: 36px 32px;
+            backdrop-filter: blur(24px);
+            box-shadow: 0 24px 60px rgba(0,0,0,0.7), 0 0 40px rgba(201,130,185,0.12);
+        }
+
+        .login-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 26px;
+            font-weight: 400;
+            color: #f3f3f5;
+            margin: 0 0 6px;
+            text-align: center;
+        }
+        .login-sub {
+            font-size: 13px;
+            color: rgba(243,243,245,0.5);
+            text-align: center;
+            margin-bottom: 28px;
+            letter-spacing: 0.2px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-label {
+            display: block;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            color: rgba(243,243,245,0.5);
+            margin-bottom: 6px;
+        }
+        .form-input {
+            width: 100%;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(201,130,185,0.22);
+            border-radius: 10px;
+            color: #f3f3f5;
+            font-size: 14px;
+            font-family: inherit;
+            padding: 11px 14px;
+            outline: none;
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+        }
+        .form-input:focus { border-color: #c982b9; }
+        .form-input::placeholder { color: rgba(243,243,245,0.3); }
+
+        .login-btn {
+            width: 100%;
+            background: linear-gradient(135deg, #c982b9, #8e3cc5);
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: inherit;
+            padding: 12px;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: opacity 0.18s, transform 0.18s;
+            letter-spacing: 0.3px;
+        }
+        .login-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+
+        .divider {
+            display: flex; align-items: center; gap: 12px;
+            margin: 24px 0 20px;
+        }
+        .divider::before, .divider::after {
+            content: ""; flex: 1;
+            height: 1px;
+            background: rgba(201,130,185,0.2);
+        }
+        .divider-text {
+            font-size: 11px;
+            color: rgba(243,243,245,0.35);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            white-space: nowrap;
+        }
+
+        .demo-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            color: rgba(243,243,245,0.4);
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .demo-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .demo-btn {
+            background: rgba(201,130,185,0.07);
+            border: 1px solid rgba(201,130,185,0.22);
+            border-radius: 10px;
+            padding: 10px 12px;
+            cursor: pointer;
+            transition: background 0.18s, border-color 0.18s;
+            text-align: left;
+        }
+        .demo-btn:hover {
+            background: rgba(201,130,185,0.14);
+            border-color: rgba(201,130,185,0.5);
+        }
+        .demo-btn-role {
+            display: block;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: #c982b9;
+            margin-bottom: 2px;
+        }
+        .demo-btn-name {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #f3f3f5;
+        }
+
+        .error-msg {
+            background: rgba(235,87,87,0.12);
+            border: 1px solid rgba(235,87,87,0.3);
+            border-radius: 8px;
+            color: #eb5757;
+            font-size: 13px;
+            padding: 10px 14px;
+            margin-top: 12px;
+            display: none;
+        }
+        .error-msg.show { display: block; }
+    </style>
+</head>
+<body>
+
+<div class="login-wrap">
+    <div class="login-logo">
+        <img src="assets/logo/celebclub-logo.png" alt="CelebClub">
+    </div>
+
+    <div class="login-card">
+        <h1 class="login-title">Creator Workspace</h1>
+        <p class="login-sub">Melde dich mit deinen Zugangsdaten an.</p>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label class="form-label">E-Mail</label>
+                <input class="form-input" type="email" id="emailInput" placeholder="deine@email.com" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Passwort</label>
+                <input class="form-input" type="password" id="passwordInput" placeholder="••••••••" required>
+            </div>
+            <button type="submit" class="login-btn">Anmelden</button>
+            <div class="error-msg" id="errorMsg"></div>
+        </form>
+
+        <div class="divider"><span class="divider-text">oder Demo-Zugang nutzen</span></div>
+
+        <p class="demo-section-title">Direkt einloggen als</p>
+        <div class="demo-grid">
+            <button class="demo-btn" onclick="Auth.loginAsDemo('u1')">
+                <span class="demo-btn-role">Manager</span>
+                <span class="demo-btn-name">Admin Manager</span>
+            </button>
+            <button class="demo-btn" onclick="Auth.loginAsDemo('u2')">
+                <span class="demo-btn-role">Model</span>
+                <span class="demo-btn-name">Sarah Mitchell</span>
+            </button>
+            <button class="demo-btn" onclick="Auth.loginAsDemo('u3')">
+                <span class="demo-btn-role">Model</span>
+                <span class="demo-btn-name">Lena Weber</span>
+            </button>
+            <button class="demo-btn" onclick="Auth.loginAsDemo('u4')">
+                <span class="demo-btn-role">Model</span>
+                <span class="demo-btn-name">Mia Torres</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script>
+    // Redirect if already logged in
+    const existing = Auth.getSession();
+    if (existing) Auth.redirectAfterLogin(existing);
+
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email    = document.getElementById('emailInput').value.trim();
+        const password = document.getElementById('passwordInput').value;
+        const errEl    = document.getElementById('errorMsg');
+        errEl.classList.remove('show');
+        try {
+            const user = await Auth.login(email, password);
+            Auth.redirectAfterLogin(user);
+        } catch (err) {
+            errEl.textContent = err.message;
+            errEl.classList.add('show');
+        }
+    });
+</script>
+</body>
+</html>

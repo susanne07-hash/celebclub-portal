@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CelebClub · Creator Workspace</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="dashboard-container">
+
+    <!-- HEADER -->
+    <header class="top-header">
+        <div class="header-left">
+            <img src="assets/logo/celebclub-logo.png" alt="CelebClub" class="header-logo">
+        </div>
+        <div class="header-center">
+            <span class="welcome-line">Willkommen zurück, <strong id="headerName">–</strong></span>
+            <span class="header-date" id="headerDate"></span>
+        </div>
+        <div class="header-right">
+            <span class="status-badge">Active Creator</span>
+            <button class="icon-btn" title="Benachrichtigungen">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            </button>
+            <div class="avatar" id="headerAvatar" title="Profil">–</div>
+            <button class="icon-btn" title="Abmelden" onclick="Auth.logout()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </button>
+        </div>
+    </header>
+
+    <button class="hamburger" id="hamburgerBtn"><span></span><span></span><span></span></button>
+
+    <!-- MOBILE MENU -->
+    <div class="mobile-menu" id="mobileMenu">
+        <div class="mobile-menu-user">
+            <div class="avatar" id="mobileAvatar">–</div>
+            <div>
+                <div class="user-name" id="mobileName">–</div>
+                <div class="status-badge" style="margin-top:4px">Active Creator</div>
+            </div>
+        </div>
+        <ul>
+            <li data-section="dashboard">Dashboard</li>
+            <li data-section="performance">Performance</li>
+            <li data-section="tasks">Tasks</li>
+            <li data-section="content">Content Plan</li>
+            <li data-section="resources">Resources</li>
+            <li data-section="faq">FAQ & Support</li>
+            <li data-section="audio">Audio Sessions</li>
+            <li data-section="settings">Settings</li>
+        </ul>
+    </div>
+
+    <div class="main-layout">
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+            <ul>
+                <li class="nav-item active" data-section="dashboard">
+                    <svg class="nav-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                    <span class="nav-title">Dashboard</span>
+                </li>
+                <li class="nav-item" data-section="performance">
+                    <svg class="nav-icon" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    <span class="nav-title">Performance</span>
+                </li>
+                <li class="nav-item" data-section="tasks">
+                    <svg class="nav-icon" viewBox="0 0 24 24"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                    <span class="nav-title">Tasks</span>
+                    <span class="nav-badge" id="taskBadge" style="display:none">0</span>
+                </li>
+                <li class="nav-item" data-section="content">
+                    <svg class="nav-icon" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+                    <span class="nav-title">Content Plan</span>
+                </li>
+                <li class="nav-item" data-section="resources">
+                    <svg class="nav-icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                    <span class="nav-title">Resources</span>
+                </li>
+                <li class="nav-item" data-section="faq">
+                    <svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <span class="nav-title">FAQ & Support</span>
+                </li>
+                <li class="nav-item" data-section="audio">
+                    <svg class="nav-icon" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                    <span class="nav-title">Audio Sessions</span>
+                </li>
+                <li class="nav-item nav-item--bottom" data-section="settings">
+                    <svg class="nav-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <span class="nav-title">Settings</span>
+                </li>
+            </ul>
+        </aside>
+
+        <main class="main-content">
+
+            <!-- ═══════════════════════════════ DASHBOARD ═══ -->
+            <section class="section active" id="dashboard">
+                <div class="section-header">
+                    <h2 class="section-heading">Deine Performance</h2>
+                    <span class="section-meta" id="kpiUpdatedAt">–</span>
+                </div>
+
+                <div class="kpi-grid" id="kpiGrid">
+                    <!-- filled by model-view.js -->
+                </div>
+
+                <div class="goal-bar-card card" id="goalCard">
+                    <!-- filled by model-view.js -->
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="card panel-tasks">
+                        <div class="panel-head">
+                            <h3 class="panel-title">Offene Tasks</h3>
+                            <button class="text-btn" onclick="navigateTo('tasks')">Alle ansehen →</button>
+                        </div>
+                        <div id="dashTaskList"><!-- filled by model-view.js --></div>
+                    </div>
+
+                    <div class="panel-right">
+                        <div class="card panel-workflow">
+                            <div class="panel-head">
+                                <h3 class="panel-title">Content Workflow</h3>
+                                <button class="text-btn" onclick="navigateTo('content')">Öffnen →</button>
+                            </div>
+                            <div class="workflow-list">
+                                <div class="workflow-item"><span class="workflow-dot dot-purple"></span><span class="workflow-label">Nächster Shoot</span><span class="workflow-value">14. April</span></div>
+                                <div class="workflow-item"><span class="workflow-dot dot-pink"></span><span class="workflow-label">Aktive Kampagne</span><span class="workflow-value">Spring Collection</span></div>
+                                <div class="workflow-item"><span class="workflow-dot dot-warn"></span><span class="workflow-label">Ausstehend</span><span class="workflow-value">2 Approvals</span></div>
+                                <div class="workflow-item"><span class="workflow-dot dot-green"></span><span class="workflow-label">Zuletzt gepostet</span><span class="workflow-value">Heute, 08:30</span></div>
+                            </div>
+                        </div>
+                        <div class="quick-actions">
+                            <div class="quick-actions-label">Quick Actions</div>
+                            <div class="qa-grid">
+                                <button class="qa-btn" onclick="navigateTo('tasks')">Tasks öffnen</button>
+                                <button class="qa-btn" onclick="navigateTo('performance')">Stats ansehen</button>
+                                <button class="qa-btn" onclick="navigateTo('content')">Content Plan</button>
+                                <button class="qa-btn" onclick="navigateTo('resources')">Resources</button>
+                                <button class="qa-btn" onclick="navigateTo('faq')">Support</button>
+                                <button class="qa-btn" onclick="navigateTo('audio')">Audio Session</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══════════════════════════════ PERFORMANCE ═══ -->
+            <section class="section" id="performance">
+                <div class="section-header">
+                    <h2 class="section-heading">Performance</h2>
+                    <span class="section-meta" id="perfModelLabel">–</span>
+                </div>
+                <div class="kpi-grid" id="perfKpiGrid"><!-- filled by model-view.js --></div>
+                <div class="card" style="margin-top:16px" id="bestPostCard"><!-- filled --></div>
+            </section>
+
+            <!-- ═══════════════════════════════ TASKS ═══ -->
+            <section class="section" id="tasks">
+                <div class="section-header">
+                    <h2 class="section-heading">Tasks</h2>
+                </div>
+                <div class="tasks-columns" id="taskColumns"><!-- filled by model-view.js --></div>
+            </section>
+
+            <!-- ═══════════════════════════════ CONTENT PLAN ═══ -->
+            <section class="section" id="content">
+                <div class="section-header">
+                    <h2 class="section-heading">Content Plan</h2>
+                    <span class="section-meta">April 2026</span>
+                </div>
+                <div class="dashboard-grid">
+                    <div class="card">
+                        <div class="panel-head"><h3 class="panel-title">Anstehende Deadlines</h3></div>
+                        <div class="workflow-list" style="margin-top:12px">
+                            <div class="workflow-item"><span class="workflow-dot dot-warn"></span><span class="workflow-label">Spring Collection Part 2</span><span class="workflow-value">08. April</span></div>
+                            <div class="workflow-item"><span class="workflow-dot dot-purple"></span><span class="workflow-label">Nächster Shoot</span><span class="workflow-value">14. April</span></div>
+                            <div class="workflow-item"><span class="workflow-dot dot-pink"></span><span class="workflow-label">Mai-Content Upload</span><span class="workflow-value">28. April</span></div>
+                            <div class="workflow-item"><span class="workflow-dot dot-green"></span><span class="workflow-label">Branding Refresh</span><span class="workflow-value">30. April</span></div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="panel-head"><h3 class="panel-title">Status</h3></div>
+                        <div class="workflow-list" style="margin-top:12px">
+                            <div class="workflow-item"><span class="workflow-dot dot-warn"></span><span class="workflow-label">Approval ausstehend</span><span class="workflow-value">2 Posts</span></div>
+                            <div class="workflow-item"><span class="workflow-dot dot-purple"></span><span class="workflow-label">In Produktion</span><span class="workflow-value">1 Video</span></div>
+                            <div class="workflow-item"><span class="workflow-dot dot-green"></span><span class="workflow-label">Fertig geplant</span><span class="workflow-value">8 Posts</span></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card" style="margin-top:0">
+                    <div class="panel-head"><h3 class="panel-title">Aktionen</h3></div>
+                    <div class="qa-grid" style="margin-top:16px">
+                        <button class="qa-btn">Content-Plan öffnen</button>
+                        <button class="qa-btn">Assets hochladen</button>
+                        <button class="qa-btn">Feedback einreichen</button>
+                        <button class="qa-btn">Kalender ansehen</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══════════════════════════════ RESOURCES ═══ -->
+            <section class="section" id="resources">
+                <div class="section-header">
+                    <h2 class="section-heading">Resources</h2>
+                    <input class="search-input" type="text" placeholder="Suchen …" id="resourceSearch">
+                </div>
+                <div class="resource-tabs" id="resourceTabs"><!-- filled by model-view.js --></div>
+                <div class="resource-grid" id="resourceGrid"><!-- filled by model-view.js --></div>
+            </section>
+
+            <!-- ═══════════════════════════════ FAQ ═══ -->
+            <section class="section" id="faq">
+                <div class="section-header"><h2 class="section-heading">FAQ & Support</h2></div>
+                <div class="dashboard-grid">
+                    <div>
+                        <div class="faq-list">
+                            <details class="faq-item card"><summary class="faq-question">Wie oft soll ich auf OF posten?</summary><p class="faq-answer">Empfohlen: 4–6 Posts pro Woche. Konsistenter Rhythmus ist wichtiger als tägliche Masse.</p></details>
+                            <details class="faq-item card"><summary class="faq-question">Wann und wie erhalte ich meine Auszahlung?</summary><p class="faq-answer">Monatlich am 15. des Folgemonats. Minimum $50. Dein Konto muss verifiziert sein.</p></details>
+                            <details class="faq-item card"><summary class="faq-question">Was darf ich posten und was nicht?</summary><p class="faq-answer">Alle Details findest du im Creator Guidelines-Dokument unter Resources. Bei Unsicherheiten zuerst Management kontaktieren.</p></details>
+                            <details class="faq-item card"><summary class="faq-question">Wie optimiere ich meinen OF-Preis?</summary><p class="faq-answer">$9.99–$14.99 für Einsteiger, höher mit festem Fanbase. Details im OF Guide unter Resources.</p></details>
+                            <details class="faq-item card"><summary class="faq-question">Was passiert wenn ein Account gesperrt wird?</summary><p class="faq-answer">Sofort Management über Emergency-Support kontaktieren. Nicht selbst mit der Plattform kommunizieren.</p></details>
+                        </div>
+                    </div>
+                    <div class="support-panel">
+                        <div class="card support-card">
+                            <h3 class="panel-title">Support kontaktieren</h3>
+                            <p class="support-desc">Frage, Problem oder Feedback – wir melden uns innerhalb von 24h.</p>
+                            <textarea class="support-textarea" placeholder="Deine Frage oder dein Anliegen …" rows="4"></textarea>
+                            <button class="btn-primary" style="width:100%;margin-top:12px">Absenden</button>
+                        </div>
+                        <div class="card support-card support-emergency">
+                            <div class="emergency-label">⚡ Urgent Help</div>
+                            <p class="support-desc">Account-Sperre, Sicherheitsproblem oder dringendes Anliegen?</p>
+                            <button class="btn-urgent">Sofort kontaktieren</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ═══════════════════════════════ AUDIO ═══ -->
+            <section class="section" id="audio">
+                <div class="section-header">
+                    <h2 class="section-heading">Audio Sessions</h2>
+                    <span class="section-meta">Mindset · Fokus · Energie</span>
+                </div>
+                <div class="audio-grid">
+                    <div class="audio-card card"><div class="audio-icon">🧘‍♀️</div><div class="audio-title">Morning Mindset</div><div class="audio-desc">Starte fokussiert in den Tag</div><div class="audio-duration">12 min</div><button class="audio-play">▶ Abspielen</button></div>
+                    <div class="audio-card card"><div class="audio-icon">💪</div><div class="audio-title">Confidence Boost</div><div class="audio-desc">Selbstsicherheit & Stärke</div><div class="audio-duration">8 min</div><button class="audio-play">▶ Abspielen</button></div>
+                    <div class="audio-card card"><div class="audio-icon">🎯</div><div class="audio-title">Deep Focus</div><div class="audio-desc">Für produktive Arbeitsphasen</div><div class="audio-duration">20 min</div><button class="audio-play">▶ Abspielen</button></div>
+                    <div class="audio-card card"><div class="audio-icon">✨</div><div class="audio-title">Motivation Reset</div><div class="audio-desc">Nach einem schwierigen Tag</div><div class="audio-duration">10 min</div><button class="audio-play">▶ Abspielen</button></div>
+                    <div class="audio-card card"><div class="audio-icon">🌙</div><div class="audio-title">Wind Down</div><div class="audio-desc">Entspannung & Regeneration</div><div class="audio-duration">15 min</div><button class="audio-play">▶ Abspielen</button></div>
+                    <div class="audio-card card"><div class="audio-icon">🔥</div><div class="audio-title">Creator Energy</div><div class="audio-desc">Vor einem Shoot oder Posting-Day</div><div class="audio-duration">6 min</div><button class="audio-play">▶ Abspielen</button></div>
+                </div>
+            </section>
+
+            <!-- ═══════════════════════════════ SETTINGS ═══ -->
+            <section class="section" id="settings">
+                <div class="section-header"><h2 class="section-heading">Settings</h2></div>
+                <div class="card" style="max-width:560px">
+                    <div class="panel-head"><h3 class="panel-title">Profil</h3></div>
+                    <div class="settings-form" id="settingsForm"><!-- filled by model-view.js --></div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/data.js"></script>
+<script src="js/main.js"></script>
+<script src="js/model-view.js"></script>
+</body>
+</html>

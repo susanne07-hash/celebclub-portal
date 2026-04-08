@@ -1,0 +1,29 @@
+{
+  "_comment": "Edit this file to update which handles the daily snapshot fetches. Handles without @ prefix.",
+  "models": [
+    {
+      "id": "m1",
+      "name": "Sarah Mitchell",
+      "instagram": "sarahmitchell",
+      "tiktok": "sarah_mitchell_"
+    },
+    {
+      "id": "m2",
+      "name": "Lena Weber",
+      "instagram": "lenaweber",
+      "tiktok": "lena_weber_official"
+    },
+    {
+      "id": "m3",
+      "name": "Mia Torres",
+      "instagram": "miatorres",
+      "tiktok": "mia_torres_"
+    },
+    {
+      "id": "m4",
+      "name": "Nina Becker",
+      "instagram": "ninabecker",
+      "tiktok": null
+    }
+  ]
+}
