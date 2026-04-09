@@ -113,6 +113,68 @@ const DB = (() => {
     function uid(prefix) { return `${prefix}${++_nextId}`; }
 
     // ════════════════════════════════════════════════════════════════
+    // LOCALSTORAGE PERSISTENCE (mock mode)
+    // ════════════════════════════════════════════════════════════════
+
+    const _LS_EXTRA_MODELS = 'cc_extra_models';   // models added at runtime
+    const _LS_DELETED_IDS  = 'cc_deleted_ids';    // hardcoded model IDs that were deleted
+    const _LS_UPDATED_MODELS = 'cc_updated_models'; // edits to hardcoded models
+
+    function _lsLoadModels() {
+        try {
+            const extra   = JSON.parse(localStorage.getItem(_LS_EXTRA_MODELS)   || '[]');
+            const deleted = JSON.parse(localStorage.getItem(_LS_DELETED_IDS)    || '[]');
+            const updated = JSON.parse(localStorage.getItem(_LS_UPDATED_MODELS) || '{}');
+
+            // Apply edits to hardcoded models, filter deleted ones
+            store.models = store.models
+                .filter(m => !deleted.includes(m.id))
+                .map(m => updated[m.id] ? { ...m, ...updated[m.id] } : m);
+
+            // Append runtime-created models (avoid duplicates)
+            const existingIds = new Set(store.models.map(m => m.id));
+            extra.forEach(m => { if (!existingIds.has(m.id)) store.models.push(m); });
+
+            // Keep _nextId above any persisted IDs to avoid collisions
+            const allIds = [...store.models.map(m => m.id), ...extra.map(m => m.id)];
+            allIds.forEach(id => {
+                const n = parseInt(id.replace(/\D/g, ''), 10);
+                if (!isNaN(n) && n >= _nextId) _nextId = n + 1;
+            });
+        } catch (e) {
+            console.warn('[DB] Failed to load persisted models:', e);
+        }
+    }
+
+    function _lsSaveExtraModels() {
+        const baseIds = new Set(['m1', 'm2', 'm3', 'm4']);
+        const extra = store.models.filter(m => !baseIds.has(m.id));
+        localStorage.setItem(_LS_EXTRA_MODELS, JSON.stringify(extra));
+    }
+
+    function _lsSaveUpdatedModel(id, fields) {
+        try {
+            const updated = JSON.parse(localStorage.getItem(_LS_UPDATED_MODELS) || '{}');
+            updated[id] = { ...(updated[id] || {}), ...fields };
+            localStorage.setItem(_LS_UPDATED_MODELS, JSON.stringify(updated));
+        } catch (e) {}
+    }
+
+    function _lsSaveDeletedId(id) {
+        try {
+            const deleted = JSON.parse(localStorage.getItem(_LS_DELETED_IDS) || '[]');
+            if (!deleted.includes(id)) deleted.push(id);
+            localStorage.setItem(_LS_DELETED_IDS, JSON.stringify(deleted));
+            // Also remove from extra models if it was a runtime model
+            const extra = JSON.parse(localStorage.getItem(_LS_EXTRA_MODELS) || '[]');
+            localStorage.setItem(_LS_EXTRA_MODELS, JSON.stringify(extra.filter(m => m.id !== id)));
+        } catch (e) {}
+    }
+
+    // Initialise store from localStorage on load
+    _lsLoadModels();
+
+    // ════════════════════════════════════════════════════════════════
     // MODELS
     // ════════════════════════════════════════════════════════════════
 
@@ -139,6 +201,7 @@ const DB = (() => {
             const model = { id: uid('m'), createdAt: new Date().toISOString(), ...fields };
             store.models.push(model);
             store.kpis[model.id] = { ofRevenueToday: 0, ofRevenueWeek: 0, ofRevenueMonth: 0, ofSubscribersNew: 0, ofRenewalRate: 0, igViewsWeek: 0, tiktokViewsWeek: 0, followerGrowthWeek: 0, bestPost: '–' };
+            _lsSaveExtraModels();
             return model;
         }
         const { data } = await supabase.from('models').insert(fields).select().single();
@@ -150,6 +213,13 @@ const DB = (() => {
             const idx = store.models.findIndex(m => m.id === id);
             if (idx < 0) return null;
             store.models[idx] = { ...store.models[idx], ...fields };
+            // Persist: runtime model → update extra list; hardcoded model → save patch
+            const baseIds = new Set(['m1', 'm2', 'm3', 'm4']);
+            if (baseIds.has(id)) {
+                _lsSaveUpdatedModel(id, fields);
+            } else {
+                _lsSaveExtraModels();
+            }
             return store.models[idx];
         }
         const { data } = await supabase.from('models').update(fields).eq('id', id).select().single();
@@ -161,6 +231,7 @@ const DB = (() => {
             store.models = store.models.filter(m => m.id !== id);
             store.tasks  = store.tasks.filter(t => t.modelId !== id);
             delete store.kpis[id];
+            _lsSaveDeletedId(id);
             return;
         }
         await supabase.from('models').delete().eq('id', id);
