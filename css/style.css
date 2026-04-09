@@ -1374,6 +1374,19 @@ details[open] .faq-question::after { transform: rotate(45deg); }
 }
 .btn-ghost:hover { border-color: var(--border-hover); color: var(--text); }
 
+.btn-danger {
+    background: none;
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    padding: 9px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 13px; font-family: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.18s, color 0.18s;
+}
+.btn-danger:hover { background: var(--danger); color: #fff; }
+
 /* ── Social Profile Editor (multi-account per platform) ──────────────── */
 .social-profile-editor { display: flex; flex-direction: column; gap: 8px; }
 

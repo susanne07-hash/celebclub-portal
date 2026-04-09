@@ -97,8 +97,10 @@ const ManagerView = (() => {
         document.getElementById('modalTitle').textContent = title;
         document.getElementById('modalBody').innerHTML    = bodyHTML;
         document.getElementById('modalOverlay').classList.add('open');
-        const saveBtn = document.getElementById('modalSave');
-        saveBtn.onclick = onSave;
+        document.getElementById('modalSave').onclick   = onSave;
+        const delBtn = document.getElementById('modalDelete');
+        delBtn.style.display = 'none';
+        delBtn.onclick = null;
     }
 
     function closeModal() {
@@ -638,6 +640,22 @@ const ManagerView = (() => {
             renderSummaryStrip();
             closeModal();
         });
+
+        // Show delete button
+        const delBtn = document.getElementById('modalDelete');
+        delBtn.style.display = '';
+        delBtn.onclick = async () => {
+            if (!confirm(`Model "${m.name}" wirklich löschen?\n\nDiese Aktion kann nicht rückgängig gemacht werden.`)) return;
+            await DB.deleteModel(modelId);
+            _models = _models.filter(mod => mod.id !== modelId);
+            _tasks  = _tasks.filter(t => t.modelId !== modelId);
+            delete _socialAccounts[modelId];
+            closeModal();
+            await renderModelCards();
+            renderModelList();
+            renderSummaryStrip();
+            populateTaskModelFilter();
+        };
 
         setTimeout(() => renderSocialProfileEditor(modelId, 'socialEditor'), 0);
     }
