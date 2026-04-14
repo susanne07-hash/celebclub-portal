@@ -1,6 +1,9 @@
 /**
  * CelebClub · Snapshots
- * Loads data/snapshots.json and exposes helpers for the UI.
+ * Mock mode:     loads data/snapshots.json
+ * Supabase mode: queries follower_snapshots table and reshapes into the
+ *                same internal { updated, snapshots: { modelId: { platform: { handle, history[] } } } }
+ *                structure so all helper functions work identically.
  */
 
 const Snapshots = (() => {
@@ -8,12 +11,44 @@ const Snapshots = (() => {
     let _data = null;
 
     async function load() {
+        if (APP_CONFIG.USE_MOCK) {
+            try {
+                const r = await fetch('./data/snapshots.json');
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                _data = await r.json();
+            } catch (e) {
+                console.warn('[Snapshots] Could not load snapshots.json:', e.message);
+                _data = { updated: null, snapshots: {} };
+            }
+            return _data;
+        }
+
+        // ── Supabase mode ────────────────────────────────────────────
         try {
-            const r = await fetch('./data/snapshots.json');
-            if (!r.ok) throw new Error(`HTTP ${r.status}`);
-            _data = await r.json();
+            const { data, error } = await supabase
+                .from('follower_snapshots')
+                .select('model_id, platform, handle, date, followers')
+                .order('date', { ascending: true });
+
+            if (error) throw new Error(error.message);
+
+            // Reshape flat rows into the nested snapshot format
+            const snapshots = {};
+            for (const row of (data || [])) {
+                if (!snapshots[row.model_id]) snapshots[row.model_id] = {};
+                if (!snapshots[row.model_id][row.platform]) {
+                    snapshots[row.model_id][row.platform] = { handle: row.handle, history: [] };
+                }
+                snapshots[row.model_id][row.platform].handle = row.handle;
+                snapshots[row.model_id][row.platform].history.push({
+                    date: row.date,
+                    followers: row.followers,
+                });
+            }
+
+            _data = { updated: new Date().toISOString().split('T')[0], snapshots };
         } catch (e) {
-            console.warn('[Snapshots] Could not load snapshots.json:', e.message);
+            console.warn('[Snapshots] Supabase load failed:', e.message);
             _data = { updated: null, snapshots: {} };
         }
         return _data;

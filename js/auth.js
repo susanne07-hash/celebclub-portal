@@ -1,21 +1,13 @@
 /**
  * CelebClub Auth
- * Handles login / logout / role detection for both mock and Supabase modes.
+ * Handles login / logout / role detection.
+ * In Supabase mode: uses supabase.auth.signInWithPassword + profiles table.
  */
 
 const Auth = (() => {
 
     const SESSION_KEY = 'cc_session';
 
-    // ── Mock users ────────────────────────────────────────────────────────────
-    const MOCK_USERS = [
-        { id: 'u1', email: 'manager@celebclub.com', password: 'demo1234', role: 'manager', name: 'Admin Manager',  initials: 'AM', modelId: null },
-        { id: 'u2', email: 'sarah@celebclub.com',   password: 'demo1234', role: 'model',   name: 'Sarah Mitchell', initials: 'SM', modelId: 'm1' },
-        { id: 'u3', email: 'lena@celebclub.com',    password: 'demo1234', role: 'model',   name: 'Lena Weber',     initials: 'LW', modelId: 'm2' },
-        { id: 'u4', email: 'mia@celebclub.com',     password: 'demo1234', role: 'model',   name: 'Mia Torres',     initials: 'MT', modelId: 'm3' },
-    ];
-
-    // ── Internal helpers ──────────────────────────────────────────────────────
     function saveSession(user) {
         sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
     }
@@ -25,45 +17,33 @@ const Auth = (() => {
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
+
     function getSession() {
         const raw = sessionStorage.getItem(SESSION_KEY);
         return raw ? JSON.parse(raw) : null;
     }
 
     async function login(email, password) {
-        if (APP_CONFIG.USE_MOCK) {
-            const user = MOCK_USERS.find(
-                u => u.email === email && u.password === password
-            );
-            if (!user) throw new Error('E-Mail oder Passwort falsch.');
-            const { password: _pw, ...safe } = user;
-            saveSession(safe);
-            return safe;
-        }
-
-        // Supabase mode
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw new Error(error.message);
-        const { data: profile } = await supabase
+
+        const { data: profile, error: profileErr } = await supabase
             .from('profiles')
-            .select('*')
+            .select('id, email, name, initials, role')
             .eq('id', data.user.id)
             .single();
+
+        if (profileErr || !profile) {
+            throw new Error('Profil nicht gefunden. Bitte kontaktiere den Administrator.');
+        }
+
         saveSession(profile);
         return profile;
     }
 
-    function loginAsDemo(userId) {
-        const user = MOCK_USERS.find(u => u.id === userId);
-        if (!user) return;
-        const { password: _pw, ...safe } = user;
-        saveSession(safe);
-        redirectAfterLogin(safe);
-    }
-
-    function logout() {
+    async function logout() {
         clearSession();
-        if (!APP_CONFIG.USE_MOCK && supabase) supabase.auth.signOut();
+        if (supabase) await supabase.auth.signOut();
         window.location.href = 'login.html';
     }
 
@@ -92,5 +72,5 @@ const Auth = (() => {
         return user;
     }
 
-    return { getSession, login, loginAsDemo, logout, requireAuth, redirectAfterLogin };
+    return { getSession, login, logout, requireAuth, redirectAfterLogin };
 })();

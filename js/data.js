@@ -113,6 +113,90 @@ const DB = (() => {
     function uid(prefix) { return `${prefix}${++_nextId}`; }
 
     // ════════════════════════════════════════════════════════════════
+    // FIELD MAPPERS  (DB snake_case ↔ JS camelCase)
+    // ════════════════════════════════════════════════════════════════
+
+    // model
+    function _m(r) {
+        if (!r) return null;
+        return { id: r.id, userId: r.user_id, name: r.name, initials: r.initials || '',
+                 status: r.status, instagram: r.instagram, tiktok: r.tiktok, onlyfans: r.onlyfans,
+                 monthlyGoal: r.monthly_goal, notes: r.notes, createdAt: r.created_at };
+    }
+    function _mDB(f) {
+        const d = {};
+        const map = { name:'name', initials:'initials', status:'status', instagram:'instagram',
+                      tiktok:'tiktok', onlyfans:'onlyfans', notes:'notes',
+                      monthlyGoal:'monthly_goal', userId:'user_id' };
+        for (const [k,v] of Object.entries(map)) if (f[k] !== undefined) d[v] = f[k];
+        return d;
+    }
+
+    // social_account
+    function _sa(r) {
+        if (!r) return null;
+        return { id: r.id, modelId: r.model_id, platform: r.platform,
+                 username: r.username, url: r.url, isPrimary: r.is_primary, createdAt: r.created_at };
+    }
+    function _saDB(f) {
+        const d = {};
+        const map = { modelId:'model_id', platform:'platform', username:'username',
+                      url:'url', isPrimary:'is_primary' };
+        for (const [k,v] of Object.entries(map)) if (f[k] !== undefined) d[v] = f[k];
+        return d;
+    }
+
+    // kpi_snapshot
+    function _kpi(r) {
+        if (!r) return null;
+        return { ofRevenueToday: r.of_revenue_today, ofRevenueWeek: r.of_revenue_week,
+                 ofRevenueMonth: r.of_revenue_month, ofSubscribersNew: r.of_subscribers_new,
+                 ofRenewalRate: r.of_renewal_rate, igViewsWeek: r.ig_views_week,
+                 tiktokViewsWeek: r.tiktok_views_week, followerGrowthWeek: r.follower_growth_week,
+                 bestPost: r.best_post || '–' };
+    }
+    function _kpiDB(f) {
+        const d = {};
+        const map = { ofRevenueToday:'of_revenue_today', ofRevenueWeek:'of_revenue_week',
+                      ofRevenueMonth:'of_revenue_month', ofSubscribersNew:'of_subscribers_new',
+                      ofRenewalRate:'of_renewal_rate', igViewsWeek:'ig_views_week',
+                      tiktokViewsWeek:'tiktok_views_week', followerGrowthWeek:'follower_growth_week',
+                      bestPost:'best_post' };
+        for (const [k,v] of Object.entries(map)) if (f[k] !== undefined) d[v] = f[k];
+        return d;
+    }
+
+    // task
+    function _t(r) {
+        if (!r) return null;
+        return { id: r.id, modelId: r.model_id, title: r.title, notes: r.notes,
+                 priority: r.priority, status: r.status, dueDate: r.due_date,
+                 createdBy: r.created_by, createdAt: r.created_at };
+    }
+    function _tDB(f) {
+        const d = {};
+        const map = { title:'title', notes:'notes', priority:'priority', status:'status',
+                      modelId:'model_id', dueDate:'due_date', createdBy:'created_by' };
+        for (const [k,v] of Object.entries(map)) if (f[k] !== undefined) d[v] = f[k];
+        return d;
+    }
+
+    // resource
+    function _res(r) {
+        if (!r) return null;
+        return { id: r.id, categorySlug: r.category_slug, title: r.title,
+                 description: r.description, type: r.type, url: r.url || '#',
+                 pinned: r.pinned, visibleToAll: r.visible_to_all, modelIds: [] };
+    }
+    function _resDB(f) {
+        const d = {};
+        const map = { categorySlug:'category_slug', title:'title', description:'description',
+                      type:'type', url:'url', pinned:'pinned', visibleToAll:'visible_to_all' };
+        for (const [k,v] of Object.entries(map)) if (f[k] !== undefined) d[v] = f[k];
+        return d;
+    }
+
+    // ════════════════════════════════════════════════════════════════
     // LOCALSTORAGE PERSISTENCE (mock mode)
     // ════════════════════════════════════════════════════════════════
 
@@ -180,20 +264,21 @@ const DB = (() => {
 
     async function getModels() {
         if (APP_CONFIG.USE_MOCK) return [...store.models];
-        const { data } = await supabase.from('models').select('*').order('name');
-        return data;
+        const { data, error } = await supabase.from('models').select('*').order('name');
+        if (error) { console.error('[DB] getModels:', error.message); return []; }
+        return (data || []).map(_m);
     }
 
     async function getModel(id) {
         if (APP_CONFIG.USE_MOCK) return store.models.find(m => m.id === id) || null;
         const { data } = await supabase.from('models').select('*').eq('id', id).single();
-        return data;
+        return _m(data);
     }
 
     async function getModelByUserId(userId) {
         if (APP_CONFIG.USE_MOCK) return store.models.find(m => m.userId === userId) || null;
-        const { data } = await supabase.from('models').select('*').eq('user_id', userId).single();
-        return data;
+        const { data } = await supabase.from('models').select('*').eq('user_id', userId).maybeSingle();
+        return _m(data);
     }
 
     async function createModel(fields) {
@@ -204,8 +289,9 @@ const DB = (() => {
             _lsSaveExtraModels();
             return model;
         }
-        const { data } = await supabase.from('models').insert(fields).select().single();
-        return data;
+        const { data, error } = await supabase.from('models').insert(_mDB(fields)).select().single();
+        if (error) { console.error('[DB] createModel:', error.message); return null; }
+        return _m(data);
     }
 
     async function updateModel(id, fields) {
@@ -213,17 +299,13 @@ const DB = (() => {
             const idx = store.models.findIndex(m => m.id === id);
             if (idx < 0) return null;
             store.models[idx] = { ...store.models[idx], ...fields };
-            // Persist: runtime model → update extra list; hardcoded model → save patch
             const baseIds = new Set(['m1', 'm2', 'm3', 'm4']);
-            if (baseIds.has(id)) {
-                _lsSaveUpdatedModel(id, fields);
-            } else {
-                _lsSaveExtraModels();
-            }
+            if (baseIds.has(id)) { _lsSaveUpdatedModel(id, fields); } else { _lsSaveExtraModels(); }
             return store.models[idx];
         }
-        const { data } = await supabase.from('models').update(fields).eq('id', id).select().single();
-        return data;
+        const { data, error } = await supabase.from('models').update(_mDB(fields)).eq('id', id).select().single();
+        if (error) { console.error('[DB] updateModel:', error.message); return null; }
+        return _m(data);
     }
 
     async function deleteModel(id) {
@@ -234,7 +316,8 @@ const DB = (() => {
             _lsSaveDeletedId(id);
             return;
         }
-        await supabase.from('models').delete().eq('id', id);
+        const { error } = await supabase.from('models').delete().eq('id', id);
+        if (error) console.error('[DB] deleteModel:', error.message);
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -246,16 +329,12 @@ const DB = (() => {
             return store.socialAccounts.filter(a => a.modelId === modelId);
         }
         const { data } = await supabase
-            .from('social_accounts')
-            .select('*')
-            .eq('model_id', modelId)
-            .order('platform');
-        return data;
+            .from('social_accounts').select('*').eq('model_id', modelId).order('platform');
+        return (data || []).map(_sa);
     }
 
     async function createSocialAccount(fields) {
         if (APP_CONFIG.USE_MOCK) {
-            // Enforce one primary per model+platform
             if (fields.isPrimary) {
                 store.socialAccounts.forEach(a => {
                     if (a.modelId === fields.modelId && a.platform === fields.platform) a.isPrimary = false;
@@ -263,18 +342,18 @@ const DB = (() => {
             }
             const account = { id: uid('sa'), createdAt: new Date().toISOString(), ...fields };
             store.socialAccounts.push(account);
-            // Mirror to legacy columns
             _mirrorToModel(fields.modelId);
             return account;
         }
-        if (fields.isPrimary) {
+        const dbFields = _saDB(fields);
+        if (dbFields.is_primary) {
             await supabase.from('social_accounts')
                 .update({ is_primary: false })
-                .eq('model_id', fields.model_id)
-                .eq('platform', fields.platform);
+                .eq('model_id', dbFields.model_id)
+                .eq('platform', dbFields.platform);
         }
-        const { data } = await supabase.from('social_accounts').insert(fields).select().single();
-        return data;
+        const { data } = await supabase.from('social_accounts').insert(dbFields).select().single();
+        return _sa(data);
     }
 
     async function updateSocialAccount(id, fields) {
@@ -291,17 +370,17 @@ const DB = (() => {
             _mirrorToModel(store.socialAccounts[idx].modelId);
             return store.socialAccounts[idx];
         }
-        if (fields.is_primary) {
-            const current = store.socialAccounts.find(a => a.id === id);
-            if (current) {
+        const dbFields = _saDB(fields);
+        if (dbFields.is_primary) {
+            const { data: cur } = await supabase.from('social_accounts').select('model_id,platform').eq('id', id).single();
+            if (cur) {
                 await supabase.from('social_accounts')
                     .update({ is_primary: false })
-                    .eq('model_id', current.model_id)
-                    .eq('platform', current.platform);
+                    .eq('model_id', cur.model_id).eq('platform', cur.platform);
             }
         }
-        const { data } = await supabase.from('social_accounts').update(fields).eq('id', id).select().single();
-        return data;
+        const { data } = await supabase.from('social_accounts').update(dbFields).eq('id', id).select().single();
+        return _sa(data);
     }
 
     async function deleteSocialAccount(id) {
@@ -332,13 +411,9 @@ const DB = (() => {
     async function getKpis(modelId) {
         if (APP_CONFIG.USE_MOCK) return store.kpis[modelId] || null;
         const { data } = await supabase
-            .from('kpi_snapshots')
-            .select('*')
-            .eq('model_id', modelId)
-            .order('date', { ascending: false })
-            .limit(1)
-            .single();
-        return data;
+            .from('kpi_snapshots').select('*').eq('model_id', modelId)
+            .order('date', { ascending: false }).limit(1).maybeSingle();
+        return _kpi(data);
     }
 
     async function updateKpis(modelId, fields) {
@@ -346,8 +421,10 @@ const DB = (() => {
             store.kpis[modelId] = { ...(store.kpis[modelId] || {}), ...fields };
             return store.kpis[modelId];
         }
-        const { data } = await supabase.from('kpi_snapshots').upsert({ model_id: modelId, date: new Date().toISOString().split('T')[0], ...fields }).select().single();
-        return data;
+        const { data } = await supabase.from('kpi_snapshots')
+            .upsert({ model_id: modelId, date: new Date().toISOString().split('T')[0], ..._kpiDB(fields) })
+            .select().single();
+        return _kpi(data);
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -356,14 +433,13 @@ const DB = (() => {
 
     async function getTasks(modelId = null) {
         if (APP_CONFIG.USE_MOCK) {
-            return modelId
-                ? store.tasks.filter(t => t.modelId === modelId)
-                : [...store.tasks];
+            return modelId ? store.tasks.filter(t => t.modelId === modelId) : [...store.tasks];
         }
         let q = supabase.from('tasks').select('*').order('due_date');
         if (modelId) q = q.eq('model_id', modelId);
-        const { data } = await q;
-        return data;
+        const { data, error } = await q;
+        if (error) { console.error('[DB] getTasks:', error.message); return []; }
+        return (data || []).map(_t);
     }
 
     async function createTask(fields) {
@@ -372,8 +448,9 @@ const DB = (() => {
             store.tasks.push(task);
             return task;
         }
-        const { data } = await supabase.from('tasks').insert(fields).select().single();
-        return data;
+        const { data, error } = await supabase.from('tasks').insert(_tDB(fields)).select().single();
+        if (error) { console.error('[DB] createTask:', error.message); return null; }
+        return _t(data);
     }
 
     async function updateTask(id, fields) {
@@ -383,8 +460,9 @@ const DB = (() => {
             store.tasks[idx] = { ...store.tasks[idx], ...fields };
             return store.tasks[idx];
         }
-        const { data } = await supabase.from('tasks').update(fields).eq('id', id).select().single();
-        return data;
+        const { data, error } = await supabase.from('tasks').update(_tDB(fields)).eq('id', id).select().single();
+        if (error) { console.error('[DB] updateTask:', error.message); return null; }
+        return _t(data);
     }
 
     async function deleteTask(id) {
@@ -404,15 +482,15 @@ const DB = (() => {
             if (!modelId) return [...store.resources];
             return store.resources.filter(r => r.visibleToAll || r.modelIds.includes(modelId));
         }
-        let q = supabase.from('resources').select('*').order('pinned', { ascending: false }).order('title');
-        const { data } = await q;
-        return data;
+        const { data } = await supabase.from('resources')
+            .select('*').order('pinned', { ascending: false }).order('title');
+        return (data || []).map(_res);
     }
 
     async function getResourceCategories() {
         if (APP_CONFIG.USE_MOCK) return [...store.resourceCategories];
-        const { data } = await supabase.from('resource_categories').select('*').order('sort_order');
-        return data;
+        const { data } = await supabase.from('resource_categories').select('slug,name').order('sort_order');
+        return data || [];
     }
 
     async function createResource(fields) {
@@ -421,8 +499,8 @@ const DB = (() => {
             store.resources.push(res);
             return res;
         }
-        const { data } = await supabase.from('resources').insert(fields).select().single();
-        return data;
+        const { data } = await supabase.from('resources').insert(_resDB(fields)).select().single();
+        return _res(data);
     }
 
     async function updateResource(id, fields) {
@@ -432,8 +510,8 @@ const DB = (() => {
             store.resources[idx] = { ...store.resources[idx], ...fields };
             return store.resources[idx];
         }
-        const { data } = await supabase.from('resources').update(fields).eq('id', id).select().single();
-        return data;
+        const { data } = await supabase.from('resources').update(_resDB(fields)).eq('id', id).select().single();
+        return _res(data);
     }
 
     async function deleteResource(id) {
