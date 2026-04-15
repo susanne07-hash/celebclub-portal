@@ -2,8 +2,8 @@ name: Daily Follower Snapshot
 
 on:
   schedule:
-    # Every day at 23:00 UTC
-    - cron: '0 23 * * *'
+    # Every day at 12:00 UTC (= 14:00 Uhr deutsche Sommerzeit)
+    - cron: '0 12 * * *'
   # Allow manual trigger from GitHub Actions tab
   workflow_dispatch:
 
