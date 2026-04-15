@@ -795,45 +795,11 @@ const ManagerView = (() => {
         onlyfans:  '<span class="platform-tag platform-of">OF</span>',
     };
 
-    function _generatePosts(modelId) {
-        const profiles = {
-            m1: { igBase: 125000, ttBase: 820000, ofBase: 4200 },
-            m2: { igBase: 48000,  ttBase: 195000, ofBase: 1900 },
-            m3: { igBase: 21000,  ttBase: 88000,  ofBase: 750  },
-            m4: { igBase: 35000,  ttBase: 145000, ofBase: 1400 },
-        };
-        const p = profiles[modelId] || profiles.m1;
-        const day = n => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().split('T')[0]; };
-        const jitter = i => 0.65 + Math.abs(Math.sin(i * 7.3)) * 0.7;
-
-        const igT = ['Morning Glow ✨', 'Behind the Scenes', 'New Look 💜', 'Reel: Daily Routine', 'Q&A Highlights', 'Collab Drop', 'Studio Day 🎬'];
-        const ttT = ['Get Ready With Me 💄', 'Dance Challenge 🎵', 'Day in My Life', 'Makeup Tutorial', 'Trend Mashup', 'Outfit Check ✨', 'Trending Sound', 'Vlog Cut 📸'];
-        const ofT = ['Exclusive Update 🔒', 'PPV Drop', 'Subscriber Thank You 💜', 'VIP Content', 'Monthly Special'];
-
-        const posts = [];
-        [1, 5, 12, 20, 32, 52, 75].forEach((days, i) => {
-            const v = Math.round(p.igBase * jitter(i));
-            posts.push({ platform:'instagram', date:day(days), title:igT[i],
-                views:v, likes:Math.round(v*0.066), comments:Math.round(v*0.003), shares:Math.round(v*0.009) });
-        });
-        [2, 7, 11, 17, 26, 40, 58, 82].forEach((days, i) => {
-            const v = Math.round(p.ttBase * jitter(i + 7));
-            posts.push({ platform:'tiktok', date:day(days), title:ttT[i],
-                views:v, likes:Math.round(v*0.051), comments:Math.round(v*0.004), shares:Math.round(v*0.026) });
-        });
-        [3, 10, 22, 44, 68].forEach((days, i) => {
-            const v = Math.round(p.ofBase * jitter(i + 15));
-            posts.push({ platform:'onlyfans', date:day(days), title:ofT[i],
-                views:v, likes:Math.round(v*0.34), comments:Math.round(v*0.078), shares:0 });
-        });
-        return posts.sort((a, b) => b.date.localeCompare(a.date));
-    }
-
     function openAnalytics(modelId) {
         const model = _models.find(m => m.id === modelId);
         if (!model) return;
 
-        const allPosts = _generatePosts(modelId);
+        const allPosts = [];
         const overlay  = document.getElementById('analyticsOverlay');
         const dpPanel  = document.getElementById('dpPanel');
         document.getElementById('analyticsModelName').textContent = model.name;
