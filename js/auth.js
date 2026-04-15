@@ -27,14 +27,32 @@ const Auth = (() => {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw new Error(error.message);
 
-        const { data: profile, error: profileErr } = await supabase
+        const userId = data.user.id;
+        const userEmail = data.user.email;
+
+        let { data: profile, error: profileErr } = await supabase
             .from('profiles')
             .select('id, email, name, initials, role')
-            .eq('id', data.user.id)
+            .eq('id', userId)
             .single();
 
+        // Profile missing (e.g. account created before trigger was fixed) — create it now
         if (profileErr || !profile) {
-            throw new Error('Profil nicht gefunden. Bitte kontaktiere den Administrator.');
+            const meta = data.user.user_metadata || {};
+            const name = meta.name || (userEmail ? userEmail.split('@')[0] : 'User');
+            const initials = name.slice(0, 2).toUpperCase();
+            const role = meta.role || 'model';
+
+            const { data: inserted, error: insertErr } = await supabase
+                .from('profiles')
+                .insert({ id: userId, email: userEmail, name, initials, role })
+                .select('id, email, name, initials, role')
+                .single();
+
+            if (insertErr || !inserted) {
+                throw new Error('Profil konnte nicht erstellt werden: ' + (insertErr?.message || 'Unbekannter Fehler'));
+            }
+            profile = inserted;
         }
 
         saveSession(profile);
