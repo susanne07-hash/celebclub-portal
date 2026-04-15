@@ -46,12 +46,7 @@ const DB = (() => {
             },
         ],
 
-        kpis: {
-            'm1': { ofRevenueToday: 247, ofRevenueWeek: 1340, ofRevenueMonth: 4820, ofSubscribersNew: 12, ofRenewalRate: 68, igViewsWeek: 48200, tiktokViewsWeek: 112000, followerGrowthWeek: 234, bestPost: 'Instagram Reel · 28.4K Views', },
-            'm2': { ofRevenueToday: 183, ofRevenueWeek: 890,  ofRevenueMonth: 3240, ofSubscribersNew: 8,  ofRenewalRate: 72, igViewsWeek: 31500, tiktokViewsWeek: 89000,  followerGrowthWeek: 312, bestPost: 'TikTok · 89K Views', },
-            'm3': { ofRevenueToday: 0,   ofRevenueWeek: 0,    ofRevenueMonth: 0,    ofSubscribersNew: 0,  ofRenewalRate: 0,  igViewsWeek: 12400, tiktokViewsWeek: 28000,  followerGrowthWeek: 89,  bestPost: 'TikTok · 28K Views', },
-            'm4': { ofRevenueToday: 0,   ofRevenueWeek: 210,  ofRevenueMonth: 890,  ofSubscribersNew: 2,  ofRenewalRate: 45, igViewsWeek: 8200,  tiktokViewsWeek: 0,      followerGrowthWeek: -12, bestPost: 'Instagram · 8.2K Views', },
-        },
+        kpis: {},
 
         tasks: [
             { id: 't1',  modelId: 'm1', title: 'OF Content aufnehmen',           priority: 'urgent', status: 'open',        dueDate: '2026-04-06', notes: 'Min. 3 Reels für diese Woche',    createdBy: 'u1' },
