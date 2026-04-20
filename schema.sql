@@ -169,11 +169,35 @@ create table if not exists public.follower_snapshots (
     date       date        not null default current_date,
     followers  integer     not null,
     created_at timestamptz not null default now(),
-    unique (model_id, platform, date)
+    -- handle included so multiple IG accounts per model each get their own row
+    unique (model_id, platform, handle, date)
 );
 
 create index if not exists snapshots_model_platform_date_idx
     on public.follower_snapshots(model_id, platform, date desc);
+
+
+-- ── Post Snapshots ────────────────────────────────────────────
+-- One row per Instagram post; upserted on each daily run so metrics stay current.
+create table if not exists public.post_snapshots (
+    id          uuid        primary key default uuid_generate_v4(),
+    model_id    uuid        not null references public.models(id) on delete cascade,
+    handle      text        not null,
+    post_id     text        not null,
+    shortcode   text,
+    post_url    text,
+    caption     text,
+    posted_at   timestamptz,
+    likes       int         not null default 0,
+    comments    int         not null default 0,
+    views       int         not null default 0,   -- video view count, 0 for photos
+    fetched_at  timestamptz not null default now(),
+    unique (post_id)
+);
+
+create index if not exists post_snapshots_model_idx  on public.post_snapshots(model_id);
+create index if not exists post_snapshots_handle_idx on public.post_snapshots(handle);
+create index if not exists post_snapshots_posted_idx on public.post_snapshots(posted_at desc);
 
 
 -- ── Resource Assignments ─────────────────────────────────────
@@ -193,6 +217,7 @@ alter table public.social_accounts      enable row level security;
 alter table public.resources            enable row level security;
 alter table public.resource_assignments enable row level security;
 alter table public.follower_snapshots   enable row level security;
+alter table public.post_snapshots       enable row level security;
 
 
 -- ── Helper functions ─────────────────────────────────────────
@@ -265,6 +290,14 @@ drop policy if exists "snapshots: service write" on public.follower_snapshots;
 create policy "snapshots: read"          on public.follower_snapshots
     for select using (auth.role() = 'authenticated');
 create policy "snapshots: service write" on public.follower_snapshots
+    for all to service_role using (true) with check (true);
+
+-- post_snapshots
+drop policy if exists "posts: read"          on public.post_snapshots;
+drop policy if exists "posts: service write" on public.post_snapshots;
+create policy "posts: read"          on public.post_snapshots
+    for select using (auth.role() = 'authenticated');
+create policy "posts: service write" on public.post_snapshots
     for all to service_role using (true) with check (true);
 
 

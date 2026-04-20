@@ -2,159 +2,119 @@
 """
 CelebClub · Daily Snapshot Fetcher
 -----------------------------------
-Reads model handles from Supabase (models table), fetches public follower
-counts from Instagram and TikTok via HTTP scraping (no login required),
-then upserts the results into the Supabase follower_snapshots table.
+1. Reads ALL Instagram accounts from social_accounts table (multiple per model).
+2. For each handle: fetches follower count → upserts into follower_snapshots.
+3. For each handle: fetches recent posts (likes, comments, views)
+                  → upserts into post_snapshots.
 
-Required environment variables (set as GitHub Secrets):
-  SUPABASE_URL          – e.g. https://xxxx.supabase.co
-  SUPABASE_SERVICE_KEY  – service_role key (full DB access, never expose in frontend)
+TikTok and YouTube are intentionally excluded — analytics focus on Instagram.
 
-INSTAGRAM APPROACH:
-  Uses Instagram's internal web-profile API endpoint with browser-like headers.
-  No login or API key required. Falls back to HTML meta-tag scraping if the
-  API returns a non-200 status.
-
-TIKTOK APPROACH:
-  Parses the __UNIVERSAL_DATA_FOR_REHYDRATION__ JSON blob embedded in the page.
-  Falls back to a simple regex on the raw HTML.
+Required environment variables (GitHub Secrets):
+  SUPABASE_URL          – https://xxxx.supabase.co
+  SUPABASE_SERVICE_KEY  – service_role key (bypasses RLS)
+  RAPIDAPI_KEY          – RapidAPI key for instagram-scraper-20251
 """
 
-import json
 import os
 import re
 import sys
 import time
-from datetime import date
+from datetime import date, datetime, timezone
 
 import requests
 
-TODAY = date.today().isoformat()
+TODAY      = date.today().isoformat()
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
 SUPABASE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
+RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY", "")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     print("ERROR: SUPABASE_URL and SUPABASE_SERVICE_KEY must be set", flush=True)
     sys.exit(1)
 
+if not RAPIDAPI_KEY:
+    print("ERROR: RAPIDAPI_KEY must be set", flush=True)
+    sys.exit(1)
+
 HEADERS_SB = {
-    "apikey": SUPABASE_KEY,
+    "apikey":        SUPABASE_KEY,
     "Authorization": f"Bearer {SUPABASE_KEY}",
-    "Content-Type": "application/json",
+    "Content-Type":  "application/json",
 }
 
-RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY", "")
-
-# Browser User-Agent used for direct social media requests (TikTok fallback)
-_UA = (
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
-    "AppleWebKit/605.1.15 (KHTML, like Gecko) "
-    "Version/17.0 Mobile/15E148 Safari/604.1"
-)
+RAPIDAPI_HOST    = "instagram-scraper-20251.p.rapidapi.com"
+HEADERS_RAPID    = {
+    "X-RapidAPI-Key":  RAPIDAPI_KEY,
+    "X-RapidAPI-Host": RAPIDAPI_HOST,
+}
 
 
 # ── Supabase helpers ─────────────────────────────────────────────────────────
 
-def get_models() -> list[dict]:
-    """Read all models with instagram/tiktok handles from Supabase."""
-    url = f"{SUPABASE_URL}/rest/v1/models?select=id,name,instagram,tiktok"
+def get_instagram_accounts() -> list[dict]:
+    """
+    Return all Instagram accounts from social_accounts table.
+    Each row: { model_id, model_name, handle }
+    """
+    # Join social_accounts with models to get the model name
+    url = (
+        f"{SUPABASE_URL}/rest/v1/social_accounts"
+        "?select=model_id,username,models(name)"
+        "&platform=eq.instagram"
+        "&order=model_id"
+    )
     r = requests.get(url, headers=HEADERS_SB, timeout=15)
     r.raise_for_status()
-    return r.json()
+    rows = r.json()
+
+    accounts = []
+    for row in rows:
+        accounts.append({
+            "model_id":   row["model_id"],
+            "model_name": (row.get("models") or {}).get("name", row["model_id"]),
+            "handle":     row["username"].lstrip("@"),
+        })
+    return accounts
 
 
-def upsert_snapshot(model_id: str, platform: str, handle: str, followers: int):
-    """Upsert a follower_snapshots row (unique on model_id + platform + date)."""
-    url = f"{SUPABASE_URL}/rest/v1/follower_snapshots"
+def upsert_follower_snapshot(model_id: str, handle: str, followers: int):
+    url     = f"{SUPABASE_URL}/rest/v1/follower_snapshots"
     payload = {
         "model_id":  model_id,
-        "platform":  platform,
+        "platform":  "instagram",
         "handle":    handle,
         "date":      TODAY,
         "followers": followers,
     }
-    headers = {**HEADERS_SB, "Prefer": "resolution=merge-duplicates,return=minimal"}
-    r = requests.post(url, headers=headers, json=payload, timeout=15)
+    hdrs = {**HEADERS_SB, "Prefer": "resolution=merge-duplicates,return=minimal"}
+    r = requests.post(url, headers=hdrs, json=payload, timeout=15)
     r.raise_for_status()
-    print(f"  ✓ Saved {platform} @{handle}: {followers:,} followers", flush=True)
+    print(f"    ✓ Followers saved: {followers:,}", flush=True)
 
 
-# ── Instagram via RapidAPI ───────────────────────────────────────────────────
-
-def fetch_instagram(handle: str) -> int | None:
-    """
-    Fetch public Instagram follower count via RapidAPI Instagram Scraper.
-    Falls back to direct web scraping if RAPIDAPI_KEY is not set.
-    """
-    username = handle.lstrip("@")
-
-    # ── Strategy 1: RapidAPI (reliable, bypasses IP blocks) ──────────
-    if RAPIDAPI_KEY:
-        try:
-            r = requests.get(
-                "https://instagram-scraper-20251.p.rapidapi.com/userinfo/",
-                params={"username_or_id": username},
-                headers={
-                    "X-RapidAPI-Key":  RAPIDAPI_KEY,
-                    "X-RapidAPI-Host": "instagram-scraper-20251.p.rapidapi.com",
-                },
-                timeout=20,
-            )
-            r.raise_for_status()
-            data = r.json()
-
-            # Try common response shapes from this API
-            count = (
-                _dig(data, "user", "follower_count") or
-                _dig(data, "data", "follower_count") or
-                _dig(data, "follower_count") or
-                _dig(data, "data", "user", "follower_count") or
-                _dig(data, "user", "edge_followed_by", "count") or
-                _dig(data, "data", "user", "edge_followed_by", "count")
-            )
-            if count is not None:
-                return int(count)
-
-            # Log the raw keys so we can fix the parser if shape changed
-            print(f"  [WARN] RapidAPI: could not find follower count in response. "
-                  f"Top-level keys: {list(data.keys())}", flush=True)
-            return None
-
-        except Exception as e:
-            print(f"  [WARN] RapidAPI fetch failed for @{username}: {e}", flush=True)
-            return None
-
-    # ── Strategy 2: direct web scrape (may be blocked by GitHub Actions IPs) ─
-    print("  [INFO] RAPIDAPI_KEY not set — trying direct web scrape (may fail)", flush=True)
-    session = requests.Session()
-    base_url = f"https://www.instagram.com/{username}/"
-    common_headers = {
-        "User-Agent":      _UA,
-        "Accept-Language": "en-US,en;q=0.9",
+def upsert_post_snapshot(model_id: str, handle: str, post: dict):
+    url     = f"{SUPABASE_URL}/rest/v1/post_snapshots"
+    payload = {
+        "model_id":  model_id,
+        "handle":    handle,
+        "post_id":   post["post_id"],
+        "shortcode": post.get("shortcode"),
+        "post_url":  post.get("post_url"),
+        "caption":   (post.get("caption") or "")[:500],  # cap length
+        "posted_at": post.get("posted_at"),
+        "likes":     post.get("likes", 0),
+        "comments":  post.get("comments", 0),
+        "views":     post.get("views", 0),
+        "fetched_at": datetime.now(timezone.utc).isoformat(),
     }
-    try:
-        session.get(base_url, headers=common_headers, timeout=15)
-        time.sleep(1)
-        api_url = (
-            "https://www.instagram.com/api/v1/users/web_profile_info/"
-            f"?username={username}"
-        )
-        r = session.get(api_url, headers={
-            **common_headers,
-            "Accept":           "*/*",
-            "x-ig-app-id":      "936619743392459",
-            "Referer":          base_url,
-            "X-Requested-With": "XMLHttpRequest",
-        }, timeout=20)
-        if r.status_code == 200:
-            return int(r.json()["data"]["user"]["edge_followed_by"]["count"])
-        print(f"  [WARN] Direct IG API returned HTTP {r.status_code} for @{username}", flush=True)
-    except Exception as e:
-        print(f"  [WARN] Direct IG scrape failed for @{username}: {e}", flush=True)
-    return None
+    hdrs = {**HEADERS_SB, "Prefer": "resolution=merge-duplicates,return=minimal"}
+    r = requests.post(url, headers=hdrs, json=payload, timeout=15)
+    r.raise_for_status()
 
 
-def _dig(obj: dict, *keys):
+# ── RapidAPI helpers ─────────────────────────────────────────────────────────
+
+def _dig(obj, *keys):
     """Safely traverse a nested dict; returns None if any key is missing."""
     for k in keys:
         if not isinstance(obj, dict):
@@ -163,100 +123,247 @@ def _dig(obj: dict, *keys):
     return obj
 
 
-# ── TikTok via HTML scraping ─────────────────────────────────────────────────
-
-def fetch_tiktok(handle: str) -> int | None:
-    url = f"https://www.tiktok.com/@{handle.lstrip('@')}"
-    headers = {
-        "User-Agent":      _UA,
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    }
+def rapidapi_get(endpoint: str, params: dict) -> dict | None:
+    """GET from RapidAPI; returns parsed JSON or None on error."""
     try:
-        r = requests.get(url, headers=headers, timeout=20)
-        r.raise_for_status()
-
-        # Strategy 1: __UNIVERSAL_DATA_FOR_REHYDRATION__ JSON blob
-        m = re.search(
-            r'<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>(.*?)</script>',
-            r.text, re.DOTALL,
+        r = requests.get(
+            f"https://{RAPIDAPI_HOST}/{endpoint.lstrip('/')}",
+            params=params,
+            headers=HEADERS_RAPID,
+            timeout=25,
         )
-        if m:
-            data = json.loads(m.group(1))
-            try:
-                stats = (
-                    data["__DEFAULT_SCOPE__"]["webapp.user-detail"]
-                    ["userInfo"]["stats"]
-                )
-                return int(stats["followerCount"])
-            except (KeyError, TypeError, ValueError):
-                pass
-
-        # Strategy 2: simple regex fallback
-        m2 = re.search(r'"followerCount"\s*:\s*(\d+)', r.text)
-        if m2:
-            return int(m2.group(1))
-
-        print(f"  [WARN] TikTok: could not parse follower count for {handle}", flush=True)
-        return None
-
+        if r.status_code == 404:
+            print(f"    [WARN] RapidAPI {endpoint} → 404 (endpoint may not exist)", flush=True)
+            return None
+        r.raise_for_status()
+        return r.json()
     except Exception as e:
-        print(f"  [WARN] TikTok fetch failed for {handle}: {e}", flush=True)
+        print(f"    [WARN] RapidAPI {endpoint} failed: {e}", flush=True)
         return None
+
+
+# ── Instagram: follower count ─────────────────────────────────────────────────
+
+def fetch_followers(handle: str) -> int | None:
+    data = rapidapi_get("/userinfo/", {"username_or_id": handle})
+    if not data:
+        return None
+
+    count = (
+        _dig(data, "user", "follower_count") or
+        _dig(data, "data", "follower_count") or
+        _dig(data, "follower_count") or
+        _dig(data, "data", "user", "follower_count") or
+        _dig(data, "user", "edge_followed_by", "count") or
+        _dig(data, "data", "user", "edge_followed_by", "count")
+    )
+    if count is not None:
+        return int(count)
+
+    print(f"    [WARN] Could not find follower_count in /userinfo/ response. "
+          f"Top-level keys: {list(data.keys())}", flush=True)
+    return None
+
+
+# ── Instagram: recent posts ───────────────────────────────────────────────────
+
+def _parse_timestamp(ts) -> str | None:
+    """Convert Unix timestamp or ISO string to ISO 8601 string."""
+    if ts is None:
+        return None
+    try:
+        if isinstance(ts, (int, float)):
+            return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat()
+        return str(ts)
+    except Exception:
+        return None
+
+
+def _normalise_post(raw: dict) -> dict | None:
+    """
+    Extract a normalised post dict from a raw API row.
+    Returns None if post_id cannot be determined.
+    """
+    post_id = (
+        _dig(raw, "id") or
+        _dig(raw, "pk") or
+        _dig(raw, "media_id")
+    )
+    if not post_id:
+        return None
+
+    shortcode = _dig(raw, "shortcode") or _dig(raw, "code")
+    post_url  = (
+        _dig(raw, "url") or
+        _dig(raw, "permalink") or
+        (f"https://www.instagram.com/p/{shortcode}/" if shortcode else None)
+    )
+
+    # Caption
+    caption = (
+        _dig(raw, "caption") or
+        _dig(raw, "caption_text") or
+        _dig(raw, "edge_media_to_caption", "edges", 0, "node", "text") or
+        ""
+    )
+    if isinstance(caption, dict):
+        caption = caption.get("text", "")
+
+    # Timestamp
+    posted_at = _parse_timestamp(
+        _dig(raw, "taken_at") or
+        _dig(raw, "timestamp") or
+        _dig(raw, "taken_at_timestamp")
+    )
+
+    # Metrics
+    likes = int(
+        _dig(raw, "like_count") or
+        _dig(raw, "likes", "count") or
+        _dig(raw, "edge_liked_by", "count") or
+        _dig(raw, "edge_media_preview_like", "count") or 0
+    )
+    comments = int(
+        _dig(raw, "comment_count") or
+        _dig(raw, "comments_count") or
+        _dig(raw, "edge_media_to_comment", "count") or 0
+    )
+    views = int(
+        _dig(raw, "view_count") or
+        _dig(raw, "video_view_count") or
+        _dig(raw, "play_count") or 0
+    )
+
+    return {
+        "post_id":   str(post_id),
+        "shortcode": shortcode,
+        "post_url":  post_url,
+        "caption":   caption,
+        "posted_at": posted_at,
+        "likes":     likes,
+        "comments":  comments,
+        "views":     views,
+    }
+
+
+def fetch_posts(handle: str) -> list[dict]:
+    """
+    Try multiple endpoint patterns to get recent posts.
+    Returns a list of normalised post dicts (may be empty).
+    """
+    # Endpoints to try in order
+    endpoints = [
+        ("/userposts/",      {"username_or_id": handle, "count": 20}),
+        ("/user/posts/",     {"username_or_id": handle, "count": 20}),
+        ("/posts/",          {"username_or_id": handle}),
+        ("/media/",          {"username_or_id": handle}),
+    ]
+
+    for endpoint, params in endpoints:
+        data = rapidapi_get(endpoint, params)
+        if data is None:
+            continue
+
+        # Find the posts list — try common response shapes
+        raw_list = (
+            _dig(data, "posts") or
+            _dig(data, "data", "posts") or
+            _dig(data, "items") or
+            _dig(data, "data", "items") or
+            _dig(data, "medias") or
+            _dig(data, "data", "medias") or
+            _dig(data, "data", "user", "edge_owner_to_timeline_media", "edges")
+        )
+
+        if raw_list and isinstance(raw_list, list):
+            posts = []
+            for item in raw_list:
+                # GraphQL edges wrap the actual node
+                if "node" in item:
+                    item = item["node"]
+                p = _normalise_post(item)
+                if p:
+                    posts.append(p)
+            if posts:
+                print(f"    ✓ {len(posts)} posts found via {endpoint}", flush=True)
+                return posts
+
+        # If we got data but couldn't parse it, log top-level keys for debugging
+        if data:
+            print(f"    [INFO] {endpoint} responded but posts not found. "
+                  f"Top-level keys: {list(data.keys())}", flush=True)
+            # Return empty so we don't retry the remaining endpoints
+            # (we got a 200 — just couldn't parse)
+            return []
+
+    print("    [WARN] No working posts endpoint found for this API plan.", flush=True)
+    return []
 
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
     print(f"CelebClub Snapshot Fetcher — {TODAY}", flush=True)
-    print("Fetching models from Supabase...", flush=True)
+    print("Reading Instagram accounts from social_accounts table...\n", flush=True)
 
     try:
-        models = get_models()
+        accounts = get_instagram_accounts()
     except Exception as e:
-        print(f"ERROR: Could not fetch models from Supabase: {e}", flush=True)
+        print(f"ERROR: Could not fetch social_accounts: {e}", flush=True)
         sys.exit(1)
 
-    if not models:
-        print("No models found in Supabase — nothing to do.", flush=True)
+    if not accounts:
+        print("No Instagram accounts found in social_accounts table.", flush=True)
+        print("→ Add accounts via the dashboard or directly in Supabase.", flush=True)
         return
 
-    print(f"Found {len(models)} model(s).\n", flush=True)
+    # Group by model for readable output
+    by_model: dict[str, list] = {}
+    for acc in accounts:
+        by_model.setdefault(acc["model_id"], []).append(acc)
 
-    for model in models:
-        mid  = model["id"]
-        name = model.get("name", mid)
-        print(f"── {name} ──", flush=True)
+    print(f"Found {len(accounts)} Instagram account(s) across "
+          f"{len(by_model)} model(s).\n", flush=True)
 
-        # Instagram
-        ig_handle = model.get("instagram")
-        if ig_handle:
-            print(f"  Fetching Instagram @{ig_handle.lstrip('@')} ...", flush=True)
-            followers = fetch_instagram(ig_handle)
+    for model_id, accs in by_model.items():
+        model_name = accs[0]["model_name"]
+        print(f"══ {model_name} ({len(accs)} IG account(s)) ══", flush=True)
+
+        for acc in accs:
+            handle = acc["handle"]
+            print(f"  @{handle}", flush=True)
+
+            # ── Follower count ───────────────────────────────────
+            print("    Fetching followers...", flush=True)
+            followers = fetch_followers(handle)
             if followers is not None:
                 try:
-                    upsert_snapshot(mid, "instagram", ig_handle, followers)
+                    upsert_follower_snapshot(model_id, handle, followers)
                 except Exception as e:
-                    print(f"  [WARN] Failed to save IG snapshot: {e}", flush=True)
+                    print(f"    [WARN] Could not save follower snapshot: {e}", flush=True)
             else:
-                print("  Skipping IG snapshot (fetch failed).", flush=True)
-            time.sleep(3)
+                print("    Skipping follower snapshot (fetch failed).", flush=True)
 
-        # TikTok
-        tt_handle = model.get("tiktok")
-        if tt_handle:
-            print(f"  Fetching TikTok @{tt_handle.lstrip('@')} ...", flush=True)
-            followers = fetch_tiktok(tt_handle)
-            if followers is not None:
+            time.sleep(1)
+
+            # ── Post performance ─────────────────────────────────
+            print("    Fetching recent posts...", flush=True)
+            posts = fetch_posts(handle)
+            saved = 0
+            for post in posts:
                 try:
-                    upsert_snapshot(mid, "tiktok", tt_handle, followers)
+                    upsert_post_snapshot(model_id, handle, post)
+                    saved += 1
                 except Exception as e:
-                    print(f"  [WARN] Failed to save TT snapshot: {e}", flush=True)
-            else:
-                print("  Skipping TT snapshot (fetch failed).", flush=True)
+                    print(f"    [WARN] Could not save post {post['post_id']}: {e}", flush=True)
+            if posts:
+                print(f"    ✓ {saved}/{len(posts)} posts saved to post_snapshots.", flush=True)
+
             time.sleep(2)
 
-    print("\nDone.", flush=True)
+        print("", flush=True)
+
+    print("Done.", flush=True)
 
 
 if __name__ == "__main__":
