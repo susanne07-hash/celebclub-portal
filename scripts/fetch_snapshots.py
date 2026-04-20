@@ -43,7 +43,9 @@ HEADERS_SB = {
     "Content-Type": "application/json",
 }
 
-# Browser User-Agent used for all social media requests
+RAPIDAPI_KEY = os.environ.get("RAPIDAPI_KEY", "")
+
+# Browser User-Agent used for direct social media requests (TikTok fallback)
 _UA = (
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
     "AppleWebKit/605.1.15 (KHTML, like Gecko) "
@@ -77,104 +79,88 @@ def upsert_snapshot(model_id: str, platform: str, handle: str, followers: int):
     print(f"  ✓ Saved {platform} @{handle}: {followers:,} followers", flush=True)
 
 
-# ── Instagram via unofficial web API ────────────────────────────────────────
+# ── Instagram via RapidAPI ───────────────────────────────────────────────────
 
 def fetch_instagram(handle: str) -> int | None:
     """
-    Fetch public Instagram follower count without login.
-
-    Strategy 1 – Instagram's internal web_profile_info API:
-      Visits the profile page first to obtain cookies, then calls the
-      API endpoint that Instagram's own web app uses for unauthenticated
-      public profile lookups.
-
-    Strategy 2 – HTML meta description fallback:
-      Parses the follower count from the og:description meta tag
-      (format: "X Followers, Y Following …").
+    Fetch public Instagram follower count via RapidAPI Instagram Scraper.
+    Falls back to direct web scraping if RAPIDAPI_KEY is not set.
     """
     username = handle.lstrip("@")
-    session  = requests.Session()
-    base_url = f"https://www.instagram.com/{username}/"
 
+    # ── Strategy 1: RapidAPI (reliable, bypasses IP blocks) ──────────
+    if RAPIDAPI_KEY:
+        try:
+            r = requests.get(
+                "https://instagram-scraper-20251.p.rapidapi.com/userinfo/",
+                params={"username_or_id": username},
+                headers={
+                    "X-RapidAPI-Key":  RAPIDAPI_KEY,
+                    "X-RapidAPI-Host": "instagram-scraper-20251.p.rapidapi.com",
+                },
+                timeout=20,
+            )
+            r.raise_for_status()
+            data = r.json()
+
+            # Try common response shapes from this API
+            count = (
+                _dig(data, "user", "follower_count") or
+                _dig(data, "data", "follower_count") or
+                _dig(data, "follower_count") or
+                _dig(data, "data", "user", "follower_count") or
+                _dig(data, "user", "edge_followed_by", "count") or
+                _dig(data, "data", "user", "edge_followed_by", "count")
+            )
+            if count is not None:
+                return int(count)
+
+            # Log the raw keys so we can fix the parser if shape changed
+            print(f"  [WARN] RapidAPI: could not find follower count in response. "
+                  f"Top-level keys: {list(data.keys())}", flush=True)
+            return None
+
+        except Exception as e:
+            print(f"  [WARN] RapidAPI fetch failed for @{username}: {e}", flush=True)
+            return None
+
+    # ── Strategy 2: direct web scrape (may be blocked by GitHub Actions IPs) ─
+    print("  [INFO] RAPIDAPI_KEY not set — trying direct web scrape (may fail)", flush=True)
+    session = requests.Session()
+    base_url = f"https://www.instagram.com/{username}/"
     common_headers = {
         "User-Agent":      _UA,
         "Accept-Language": "en-US,en;q=0.9",
-        "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     }
-
-    # ── Strategy 1: internal API ─────────────────────────────────────
     try:
-        # Load the profile page first → picks up cookies (csrftoken etc.)
         session.get(base_url, headers=common_headers, timeout=15)
         time.sleep(1)
-
         api_url = (
             "https://www.instagram.com/api/v1/users/web_profile_info/"
             f"?username={username}"
         )
-        api_headers = {
+        r = session.get(api_url, headers={
             **common_headers,
-            "Accept":          "*/*",
-            "x-ig-app-id":     "936619743392459",  # Instagram web app public ID
-            "x-asbd-id":       "198387",
-            "Referer":         base_url,
+            "Accept":           "*/*",
+            "x-ig-app-id":      "936619743392459",
+            "Referer":          base_url,
             "X-Requested-With": "XMLHttpRequest",
-        }
-        r = session.get(api_url, headers=api_headers, timeout=20)
-
+        }, timeout=20)
         if r.status_code == 200:
-            data  = r.json()
-            count = data["data"]["user"]["edge_followed_by"]["count"]
-            return int(count)
-
-        print(
-            f"  [INFO] IG web_profile_info returned HTTP {r.status_code} "
-            f"for @{username} — trying HTML fallback",
-            flush=True,
-        )
-
+            return int(r.json()["data"]["user"]["edge_followed_by"]["count"])
+        print(f"  [WARN] Direct IG API returned HTTP {r.status_code} for @{username}", flush=True)
     except Exception as e:
-        print(f"  [WARN] IG API request failed for @{username}: {e}", flush=True)
-
-    # ── Strategy 2: HTML meta description ────────────────────────────
-    try:
-        r = session.get(base_url, headers=common_headers, timeout=20)
-        r.raise_for_status()
-
-        # og:description contains "X Followers, Y Following, Z Posts"
-        m = re.search(
-            r'<meta[^>]+property=["\']og:description["\'][^>]*content=["\']([^"\']+)["\']',
-            r.text,
-        )
-        if not m:
-            # Try the alternate attribute order
-            m = re.search(
-                r'<meta[^>]+content=["\']([^"\']+)["\'][^>]*property=["\']og:description["\']',
-                r.text,
-            )
-        if m:
-            desc = m.group(1)
-            fm = re.search(r"([\d,\.]+[KMBkmb]?)\s+Followers", desc, re.IGNORECASE)
-            if fm:
-                raw = fm.group(1).replace(",", "")
-                # Handle abbreviated counts like "12.3K" or "1.2M"
-                if raw.upper().endswith("K"):
-                    return int(float(raw[:-1]) * 1_000)
-                if raw.upper().endswith("M"):
-                    return int(float(raw[:-1]) * 1_000_000)
-                return int(raw)
-
-        # Last-resort: look for edge_followed_by in any embedded JSON
-        m2 = re.search(r'"edge_followed_by"\s*:\s*\{"count"\s*:\s*(\d+)\}', r.text)
-        if m2:
-            return int(m2.group(1))
-
-        print(f"  [WARN] Could not parse IG follower count for @{username}", flush=True)
-
-    except Exception as e:
-        print(f"  [WARN] IG HTML fallback failed for @{username}: {e}", flush=True)
-
+        print(f"  [WARN] Direct IG scrape failed for @{username}: {e}", flush=True)
     return None
+
+
+def _dig(obj: dict, *keys):
+    """Safely traverse a nested dict; returns None if any key is missing."""
+    for k in keys:
+        if not isinstance(obj, dict):
+            return None
+        obj = obj.get(k)
+    return obj
 
 
 # ── TikTok via HTML scraping ─────────────────────────────────────────────────
