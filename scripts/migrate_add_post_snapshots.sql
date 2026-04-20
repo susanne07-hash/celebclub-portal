@@ -38,8 +38,10 @@ ORDER  BY m.name, sa.platform;
 ALTER TABLE public.follower_snapshots
     DROP CONSTRAINT IF EXISTS follower_snapshots_model_id_platform_date_key;
 
+-- ADD CONSTRAINT IF NOT EXISTS is not supported in PostgreSQL —
+-- safe to add unconditionally because we just dropped the old one above.
 ALTER TABLE public.follower_snapshots
-    ADD CONSTRAINT IF NOT EXISTS follower_snapshots_model_id_platform_handle_date_key
+    ADD CONSTRAINT follower_snapshots_model_id_platform_handle_date_key
     UNIQUE (model_id, platform, handle, date);
 
 
