@@ -53,10 +53,12 @@ HEADERS_RAPID    = {
 
 def get_instagram_accounts() -> list[dict]:
     """
-    Return all Instagram accounts from social_accounts table.
-    Each row: { model_id, model_name, handle }
+    Return all Instagram accounts.
+    Primary source: social_accounts table (supports multiple handles per model).
+    Fallback: models.instagram column (single handle, legacy).
+    Each entry: { model_id, model_name, handle }
     """
-    # Join social_accounts with models to get the model name
+    # ── Primary: social_accounts ─────────────────────────────────
     url = (
         f"{SUPABASE_URL}/rest/v1/social_accounts"
         "?select=model_id,username,models(name)"
@@ -67,13 +69,34 @@ def get_instagram_accounts() -> list[dict]:
     r.raise_for_status()
     rows = r.json()
 
+    if rows:
+        accounts = []
+        for row in rows:
+            accounts.append({
+                "model_id":   row["model_id"],
+                "model_name": (row.get("models") or {}).get("name", row["model_id"]),
+                "handle":     row["username"].lstrip("@"),
+            })
+        return accounts
+
+    # ── Fallback: models.instagram ───────────────────────────────
+    print("  [INFO] social_accounts is empty — falling back to models.instagram column.", flush=True)
+    print("  [INFO] Run scripts/migrate_add_post_snapshots.sql in Supabase to populate", flush=True)
+    print("         social_accounts (enables multiple handles per model).\n", flush=True)
+
+    url2 = f"{SUPABASE_URL}/rest/v1/models?select=id,name,instagram&instagram=not.is.null"
+    r2   = requests.get(url2, headers=HEADERS_SB, timeout=15)
+    r2.raise_for_status()
+
     accounts = []
-    for row in rows:
-        accounts.append({
-            "model_id":   row["model_id"],
-            "model_name": (row.get("models") or {}).get("name", row["model_id"]),
-            "handle":     row["username"].lstrip("@"),
-        })
+    for m in r2.json():
+        ig = (m.get("instagram") or "").strip().lstrip("@")
+        if ig:
+            accounts.append({
+                "model_id":   m["id"],
+                "model_name": m.get("name", m["id"]),
+                "handle":     ig,
+            })
     return accounts
 
 

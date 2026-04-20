@@ -3,6 +3,36 @@
 -- Run once in Supabase SQL Editor.
 -- ============================================================
 
+-- 0. Copy existing instagram/tiktok handles from models table → social_accounts
+--    (only inserts rows that don't already exist)
+INSERT INTO public.social_accounts (model_id, platform, username, is_primary)
+SELECT id, 'instagram', instagram, true
+FROM   public.models
+WHERE  instagram IS NOT NULL
+  AND  instagram <> ''
+  AND  NOT EXISTS (
+      SELECT 1 FROM public.social_accounts sa
+      WHERE sa.model_id = models.id AND sa.platform = 'instagram' AND sa.username = models.instagram
+  )
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.social_accounts (model_id, platform, username, is_primary)
+SELECT id, 'tiktok', tiktok, true
+FROM   public.models
+WHERE  tiktok IS NOT NULL
+  AND  tiktok <> ''
+  AND  NOT EXISTS (
+      SELECT 1 FROM public.social_accounts sa
+      WHERE sa.model_id = models.id AND sa.platform = 'tiktok' AND sa.username = models.tiktok
+  )
+ON CONFLICT DO NOTHING;
+
+-- Verify what was inserted:
+SELECT m.name, sa.platform, sa.username, sa.is_primary
+FROM   public.social_accounts sa
+JOIN   public.models m ON m.id = sa.model_id
+ORDER  BY m.name, sa.platform;
+
 -- 1. Fix follower_snapshots unique constraint to include handle
 --    (needed so each IG account per model gets its own row)
 ALTER TABLE public.follower_snapshots
